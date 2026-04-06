@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JEI Web — Ultimate Recipe Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root {
+  --bg: #0c0c0c;
+  --panel: #2d2d2d;
+  --panel-light: #3a3a3a;
+  --slot-bg: #1a1a1a;
+  --slot-dark: #111;
+  --slot-light: #5a5a5a;
+  --text: #e0e0e0;
+  --text-dim: #888;
+  --green: #4caf50;
+  --gold: #f0c040;
+  --gold-shadow: #6e5500;
+  --blue: #4fc3f7;
+  --red: #ef5350;
+  --orange: #f7921e;
+  --font-px: 'Press Start 2P', monospace;
+  --font-vt: 'VT323', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-vt);
+  font-size: 18px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ─── UPLOAD SCREEN ─── */
+#upload-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  padding: 24px;
+  background:
+    radial-gradient(ellipse 60% 40% at 15% 60%, rgba(76,175,80,.07) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 35% at 85% 25%, rgba(240,192,64,.06) 0%, transparent 70%),
+    var(--bg);
+}
+
+.logo-title {
+  font-family: var(--font-px);
+  font-size: clamp(18px, 4vw, 28px);
+  color: var(--gold);
+  text-shadow: 3px 3px var(--gold-shadow);
+  letter-spacing: 3px;
+  text-align: center;
+  line-height: 1.8;
+}
+
+.logo-sub {
+  font-family: var(--font-vt);
+  font-size: 22px;
+  color: var(--text-dim);
+  letter-spacing: 6px;
+  text-align: center;
+  margin-top: 8px;
+}
+
+.drop-zone {
+  width: 500px;
+  max-width: 92vw;
+  border: 3px dashed #3a3a3a;
+  padding: 52px 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s, background .2s, transform .15s;
+  background: rgba(255,255,255,.015);
+  position: relative;
+}
+
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--gold);
+  background: rgba(240,192,64,.04);
+  transform: scale(1.01);
+}
+
+.drop-icon { font-size: 52px; margin-bottom: 18px; display: block; }
+.drop-text { font-family: var(--font-px); font-size: 9px; color: var(--text-dim); line-height: 2.4; }
+.drop-text span { color: var(--gold); }
+.drop-text small { color: #444; }
+
+.file-input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+/* ─── MAIN APP ─── */
+#app { display: none; flex-direction: column; min-height: 100vh; }
+
+.app-header {
+  background: #181818; border-bottom: 2px solid #2e2e2e; padding: 10px 18px;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  position: sticky; top: 0; z-index: 100;
+}
+
+.app-title { font-family: var(--font-px); font-size: 10px; color: var(--gold); flex-shrink: 0; }
+
+.search-wrap { flex: 1; min-width: 180px; position: relative; }
+.search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #555; font-size: 16px; pointer-events: none; }
+.search-bar { width: 100%; background: #111; border: 2px solid #333; border-top-color: #1a1a1a; border-left-color: #1a1a1a; color: var(--text); font-family: var(--font-vt); font-size: 20px; padding: 7px 12px 7px 32px; outline: none; transition: border-color .2s; }
+.search-bar:focus { border-color: var(--gold); }
+.search-bar::placeholder { color: #444; }
+
+.stats-label { font-family: var(--font-vt); font-size: 16px; color: var(--text-dim); white-space: nowrap; flex-shrink: 0; }
+
+.logs-btn { background: none; border: 2px solid #333; color: var(--orange); font-family: var(--font-px); font-size: 7px; padding: 8px 10px; cursor: pointer; flex-shrink: 0; transition: border-color .2s, color .2s; }
+.logs-btn:hover { border-color: var(--orange); color: #fff; }
+
+.reset-btn { background: none; border: 2px solid #333; color: var(--text-dim); font-family: var(--font-px); font-size: 7px; padding: 8px 10px; cursor: pointer; flex-shrink: 0; transition: border-color .2s, color .2s; }
+.reset-btn:hover { border-color: var(--red); color: var(--red); }
+
+.tabs-bar { background: #151515; border-bottom: 2px solid #2a2a2a; display: flex; overflow-x: auto; scrollbar-width: none; padding: 0 16px; flex-shrink: 0; }
+.tabs-bar::-webkit-scrollbar { display: none; }
+
+.tab { font-family: var(--font-px); font-size: 7px; padding: 11px 14px; cursor: pointer; border-bottom: 3px solid transparent; color: var(--text-dim); white-space: nowrap; transition: color .15s, border-color .15s; user-select: none; flex-shrink: 0; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+.recipes-area { flex: 1; padding: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; align-items: start; }
+
+/* ─── RECIPE CARD ─── */
+.recipe-card { background: var(--panel); border: 2px solid; border-color: #555 #222 #222 #555; display: flex; flex-direction: column; animation: fadeUp .18s ease both; box-shadow: 4px 4px 10px rgba(0,0,0,0.5); position: relative; transition: z-index 0s; }
+.recipe-card.json-open { z-index: 200; } /* Podnosi kartę wyżej, gdy ma otwarty JSON */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+.card-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: #222; border-bottom: 1px solid #111; }
+.type-label { font-family: var(--font-px); font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--text); }
+.source-badge { display: flex; align-items: center; gap: 5px; font-family: var(--font-px); font-size: 6px; color: #888; text-transform: capitalize; }
+.source-badge img { width: 14px; height: 14px; image-rendering: pixelated; border-radius: 2px; }
+
+.card-body { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 15px; }
+
+/* Obszar Wejść */
+.card-inputs { display: flex; flex-direction: column; gap: 12px; border-right: 1px dashed #444; padding-right: 10px; flex: 1; }
+.input-row { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; align-items: center; position: relative; padding-bottom: 8px; border-bottom: 1px solid #333; }
+.input-row:last-child { border-bottom: none; padding-bottom: 0; }
+
+.crafting-grid { display: grid; gap: 2px; justify-content: end; margin-left: auto; }
+
+/* ─── SLOT ─── */
+.slot { width: 36px; height: 36px; background: var(--slot-bg); border: 2px solid; border-color: #1a1a1a #6a6a6a #6a6a6a #1a1a1a; position: relative; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; cursor: pointer; }
+.slot.empty-slot { background-color: #222; border-color: #111 #333 #333 #111; cursor: default; }
+
+.item-texture { width: 28px; height: 28px; image-rendering: pixelated; display: block; }
+
+/* --- MAGIA KSZTAŁTÓW CSS --- */
+.shape-slab { clip-path: polygon(0 50%, 100% 50%, 100% 100%, 0 100%); transform: translateY(-7px); }
+.shape-stairs { clip-path: polygon(0 0, 50% 0, 50% 50%, 100% 50%, 100% 100%, 0 100%); }
+.shape-fence { clip-path: polygon(35% 0, 65% 0, 65% 100%, 35% 100%); }
+.shape-wall { clip-path: polygon(20% 20%, 80% 20%, 80% 100%, 20% 100%); transform: translateY(2px); }
+
+.slot-count { position: absolute; bottom: 1px; right: 2px; font-family: var(--font-px); font-size: 6px; color: #fff; text-shadow: 1px 1px #000, -1px -1px #000; pointer-events: none; z-index: 3; }
+.slot-chance { position: absolute; top: 1px; left: 2px; font-family: var(--font-px); font-size: 5px; color: var(--gold); text-shadow: 1px 1px #000; pointer-events: none; z-index: 3; }
+.slot-text-fallback { font-size: 7px; color: #888; text-align: center; padding: 2px; word-break: break-all; width: 100%; }
+
+/* Machine & Outputs */
+.card-machine { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; }
+.machine-icon { width: 48px; height: 48px; background: var(--slot-bg); border: 2px solid; border-color: #1a1a1a #6a6a6a #6a6a6a #1a1a1a; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.machine-custom-img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(2px 4px 4px rgba(0,0,0,0.5)); }
+.catalyst-icon { width: 18px; height: 18px; margin-top: 2px; image-rendering: pixelated; filter: drop-shadow(1px 2px 2px rgba(0,0,0,0.8)); }
+
+.card-arrow { font-size: 20px; color: #555; flex-shrink: 0; line-height: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.loops-badge { font-family: var(--font-px); font-size: 6px; color: var(--gold); margin-top: 4px; }
+
+.card-output { display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: 4px; width: 25%; }
+
+.heat-badge { font-size: 9px; font-weight: bold; padding: 2px 4px; border-radius: 3px; position: absolute; left: 0; bottom: -8px; text-shadow: 1px 1px 0 #000; border: 1px solid #444; z-index: 4; }
+.heat-heated { background-color: #ffaa00; color: white; }
+.heat-superheated { background-color: #55ffff; color: #000; text-shadow: none; }
+
+/* JSON Dropdown OVERLAY (Wyciągnięte na wierzch!) */
+.json-toggle { background: #222; border-top: 1px solid #111; padding: 8px; text-align: center; font-family: var(--font-px); font-size: 6px; color: var(--text-dim); cursor: pointer; transition: background 0.2s, color 0.2s; }
+.json-toggle:hover { background: #333; color: var(--gold); }
+
+.json-content-wrapper { 
+    display: none; 
+    position: absolute; /* Pływające nad kafelkami */
+    top: calc(100% + 2px); 
+    left: -2px; 
+    right: -2px; 
+    background: #111; 
+    border: 2px solid #555; 
+    border-top: none; 
+    z-index: 250; 
+    box-shadow: 0px 10px 25px rgba(0,0,0,0.9);
+}
+
+.json-block pre { padding: 12px; margin: 0; color: #a5d6ff; font-family: monospace; font-size: 11px; overflow-x: auto; max-height: 300px; overflow-y: auto; }
+.json-separator { background: #000; color: var(--text-dim); font-size: 10px; padding: 4px 10px; border-bottom: 1px solid #222; }
+
+/* ─── TOOLTIP ─── */
+#tooltip { position: fixed; z-index: 99999; background: #161616; border: 2px solid; border-color: #666 #333 #333 #666; padding: 8px 12px; pointer-events: none; display: none; max-width: 250px; box-shadow: 0px 4px 8px rgba(0,0,0,0.5); }
+.tt-name { font-family: var(--font-px); font-size: 8px; color: var(--text); margin-bottom: 6px; word-break: break-word; line-height: 1.4; }
+.tt-id { font-family: var(--font-vt); font-size: 14px; color: #666; word-break: break-all; }
+
+/* ─── MODAL Z LOGAMI ─── */
+#logs-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 90000; align-items: center; justify-content: center; }
+.logs-content { background: var(--panel); border: 2px solid var(--orange); padding: 20px; width: 85%; max-width: 650px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0px 0px 20px rgba(247, 146, 30, 0.4); }
+.logs-header { display: flex; justify-content: space-between; margin-bottom: 15px; color: var(--orange); font-family: var(--font-px); font-size: 10px; text-transform: uppercase; }
+.close-logs-btn { cursor: pointer; color: var(--text-dim); transition: color 0.2s; font-size: 16px; }
+.close-logs-btn:hover { color: var(--red); }
+.logs-body { flex: 1; overflow-y: auto; background: #111; padding: 15px; font-family: monospace; font-size: 12px; color: #ff8a80; white-space: pre-wrap; border: 1px inset #333; }
+
+/* ─── LOADING ─── */
+#loading { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.88); z-index: 2000; flex-direction: column; align-items: center; justify-content: center; gap: 20px; }
+.loading-title { font-family: var(--font-px); font-size: 11px; color: var(--gold); text-align: center; line-height: 2; }
+.loading-msg { font-family: var(--font-vt); font-size: 18px; color: var(--text-dim); text-align: center; min-height: 24px; }
+.loading-bar-wrap { width: 320px; max-width: 90vw; height: 16px; background: #222; border: 2px solid #444; }
+.loading-bar { height: 100%; background: var(--green); width: 0%; transition: width .15s; }
+
+.no-results { font-family: var(--font-px); font-size: 9px; color: var(--text-dim); padding: 60px 20px; text-align: center; grid-column: 1 / -1; line-height: 2.5; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #111; }
+::-webkit-scrollbar-thumb { background: #3a3a3a; border-radius: 3px;}
+::-webkit-scrollbar-thumb:hover { background: #555; }
+</style>
+</head>
+<body>
+
+<div id="tooltip">
+  <div class="tt-name" id="tt-name"></div>
+  <div class="tt-id"   id="tt-id"></div>
+</div>
+
+<div id="loading">
+  <div class="loading-title">⚗ Trwa Analiza...</div>
+  <div class="loading-msg" id="loading-msg">Otwieranie archiwum</div>
+  <div class="loading-bar-wrap"><div class="loading-bar" id="loading-bar"></div></div>
+</div>
+
+<!-- Modal Logów -->
+<div id="logs-modal">
+    <div class="logs-content">
+        <div class="logs-header">
+            <span>Raport o Błędach Tekstur</span>
+            <span class="close-logs-btn" onclick="closeLogs()">✖</span>
+        </div>
+        <div class="logs-body" id="logs-body">Trwa ładowanie...</div>
+    </div>
+</div>
+
+<div id="upload-screen">
+  <div>
+    <div class="logo-title">⚗ JEI WEB</div>
+    <div class="logo-sub">ULTIMATE ANALYZER</div>
+  </div>
+  <div class="drop-zone" id="drop-zone">
+    <input type="file" class="file-input" id="file-input" multiple accept=".jar,.zip">
+    <span class="drop-icon">📦</span>
+    <div class="drop-text">
+      Upuść pliki <span>.jar / .zip</span> tutaj<br>
+      lub kliknij, żeby wybrać<br><br>
+      <small>Mody · Addony · Paczki Tekstur</small>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="app-header">
+    <div class="app-title">⚗ JEI</div>
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" class="search-bar" id="search-bar" placeholder="Szukaj (np. andesite)...">
+    </div>
+    <div class="stats-label" id="stats-label">0 receptur</div>
+    <button class="logs-btn" onclick="openLogs()">[!] Logi</button>
+    <button class="reset-btn" id="reset-btn">✕ Wróć</button>
+  </div>
+  <div class="tabs-bar" id="tabs-bar"></div>
+  <div class="recipes-area" id="recipes-area"></div>
+</div>
+
+<script>
+// =====================================================================
+// SŁOWNIKI I DANE
+// =====================================================================
+const machineMappings = {
+    "create:compacting": "images/Mechanical_Press.webp",
+    "create:pressing": "images/Mechanical_Press.webp",
+    "create:crushing": "images/Crushing_Wheel.webp",
+    "create:mixing": "images/Mechanical_Mixer.webp",
+    "create:splashing": "images/Encased_Fan.webp", 
+    "create:haunting": "images/Encased_Fan.webp",
+    "create:smoking": "images/Encased_Fan.webp",
+    "create:filling": "images/Spout.webp",
+    "create:mechanical_crafting": "images/Mechanical_Crafter.webp",
+    "create:cutting": "images/Mechanical_Saw.webp",
+    "create:milling": "images/Millstone.webp",
+    "create:sequenced_assembly": "images/Deployer.webp",
+    
+    "minecraft:blasting": "images/Blast_Furnace.webp",
+    "minecraft:smelting": "images/Furnace.webp",
+    "minecraft:smoking": "images/Smoker.webp",
+    "minecraft:campfire_cooking": "images/Campfire.webp",
+    "minecraft:stonecutting": "images/Stonecutter.webp",
+    "minecraft:crafting_shaped": "images/Crafting_Table.webp",
+    "minecraft:crafting_shapeless": "images/Crafting_Table.webp"
+};
+
+// Lokalne Fallbacki i Hardkodowane pliki omijające repozytoria i archiwa
+const hardcodedTextures = {
+    "minecraft:clock": "https://static.wikia.nocookie.net/minecraft_gamepedia/images/1/1a/Clock_JE3_BE3.gif",
+    "minecraft:compass": "https://static.wikia.nocookie.net/minecraft_gamepedia/images/a/a1/Compass_JE3_BE3.gif",
+    "create:shaft": "images/shaft.webp",
+    "create:cogwheel": "images/cogwheel.webp",
+    "create:large_cogwheel": "images/large_cogwheel.webp",
+    "create:water_wheel": "images/water_wheel.webp",
+    "minecraft:dried_kelp_block": "images/dried_kelp_block.webp",
+    "create:crushed_raw_gold": "https://static.wikia.nocookie.net/create/images/9/90/Crushed_Raw_Gold.png"
+};
+
+const universalTagKnowledge = {
+    "minecraft:planks": ["minecraft:oak_planks", "minecraft:spruce_planks", "minecraft:birch_planks", "minecraft:jungle_planks", "minecraft:acacia_planks", "minecraft:dark_oak_planks", "minecraft:cherry_planks", "minecraft:mangrove_planks"],
+    "minecraft:logs": ["minecraft:oak_log", "minecraft:spruce_log", "minecraft:birch_log", "minecraft:jungle_log", "minecraft:acacia_log", "minecraft:dark_oak_log", "minecraft:cherry_log", "minecraft:mangrove_log"],
+    "c:stones": ["minecraft:stone", "minecraft:andesite", "minecraft:diorite", "minecraft:granite", "minecraft:deepslate", "minecraft:tuff", "minecraft:calcite"],
+    "forge:stones": ["minecraft:stone", "minecraft:andesite", "minecraft:diorite", "minecraft:granite", "minecraft:deepslate", "minecraft:tuff", "minecraft:calcite"],
+    "c:netherracks": ["minecraft:netherrack"],
+    "forge:netherracks": ["minecraft:netherrack"],
+    "minecraft:coals": ["minecraft:coal", "minecraft:charcoal"],
+    "c:ingots/iron": ["minecraft:iron_ingot"],
+    "c:ingots/gold": ["minecraft:gold_ingot"],
+    "c:ingots/copper": ["minecraft:copper_ingot"],
+    "c:ingots/zinc": ["create:zinc_ingot"],
+    "c:ingots/brass": ["create:brass_ingot"],
+    "c:nuggets/iron": ["minecraft:iron_nugget"],
+    "c:nuggets/gold": ["minecraft:gold_nugget"],
+    "c:nuggets/copper": ["create:copper_nugget"],
+    "c:nuggets/zinc": ["create:zinc_nugget"],
+    "c:nuggets/brass": ["create:brass_nugget"],
+    "c:plates/iron": ["create:iron_sheet"],
+    "c:plates/gold": ["create:golden_sheet"],
+    "c:plates/copper": ["create:copper_sheet"],
+    "c:plates/brass": ["create:brass_sheet"],
+    "c:dusts/redstone": ["minecraft:redstone"],
+    "c:dusts/zinc": ["create:crushed_raw_zinc"],
+    "c:gems/diamond": ["minecraft:diamond"],
+    "c:gems/emerald": ["minecraft:emerald"],
+    "c:gems/lapis": ["minecraft:lapis_lazuli"],
+    "minecraft:leaves": ["minecraft:oak_leaves", "minecraft:spruce_leaves", "minecraft:birch_leaves"],
+    "minecraft:wool": ["minecraft:white_wool", "minecraft:black_wool", "minecraft:red_wool", "minecraft:blue_wool"],
+    "c:glass_blocks": ["minecraft:glass"],
+    "forge:glass": ["minecraft:glass"],
+    "minecraft:stone_crafting_materials": ["minecraft:cobblestone", "minecraft:blackstone", "minecraft:cobbled_deepslate"],
+    "forge:ingots/iron": ["minecraft:iron_ingot"],
+    "forge:ingots/gold": ["minecraft:gold_ingot"],
+    "forge:plates/iron": ["create:iron_sheet"],
+    "forge:plates/gold": ["create:golden_sheet"],
+    "forge:dusts/redstone": ["minecraft:redstone"]
+};
+
+const vanillaRepo = "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.20.4/assets/minecraft/textures";
+
+// Stan Aplikacji i Logi Błędów
+let textureCache = {};
+let globalNameCache = {}; 
+let tagCache = {};
+let modIconsCache = {};
+let modelCache = {}; 
+let categorizedRecipes = {}; 
+let currentCategory = '';
+let searchQuery = '';
+let animationIntervals = [];
+
+let missingTexturesLog = new Set();
+let badRecipesLog = new Set();
+
+// =====================================================================
+// EVENTY I LOGIKA INTERFEJSU
+// =====================================================================
+const $dropZone  = document.getElementById('drop-zone');
+const $fileInput = document.getElementById('file-input');
+
+$dropZone.addEventListener('dragover',  e => { e.preventDefault(); $dropZone.classList.add('drag-over'); });
+$dropZone.addEventListener('dragleave', () => $dropZone.classList.remove('drag-over'));
+$dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  $dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files.length) processFiles(e.dataTransfer.files);
+});
+
+$fileInput.addEventListener('change', e => {
+  if (e.target.files.length) processFiles(e.target.files);
+});
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('upload-screen').style.display = 'flex';
+  categorizedRecipes = {}; textureCache = {}; tagCache = {}; modIconsCache = {}; modelCache = {};
+  missingTexturesLog.clear(); badRecipesLog.clear();
+  currentCategory = ''; searchQuery = '';
+  document.getElementById('search-bar').value = '';
+});
+
+document.getElementById('search-bar').addEventListener('input', e => {
+  searchQuery = e.target.value.trim().toLowerCase();
+  renderRecipes();
+});
+
+// Zaktualizowany widok JSON (Overlay na pozostałych elementach)
+window.toggleJson = function(btn) {
+    const card = btn.closest('.recipe-card');
+    const content = btn.nextElementSibling;
+    if (content.style.display !== "block") { 
+        content.style.display = "block"; 
+        card.classList.add('json-open');
+        btn.innerHTML = btn.innerHTML.replace("[+]", "[-]").replace("Pokaż", "Ukryj");
+    } else { 
+        content.style.display = "none"; 
+        card.classList.remove('json-open');
+        btn.innerHTML = btn.innerHTML.replace("[-]", "[+]").replace("Ukryj", "Pokaż"); 
+    }
+};
+
+window.switchCategory = function(cat) {
+    currentCategory = cat;
+    document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+    let activeBtn = document.getElementById(`tab-${btoa(cat).replace(/=/g, '')}`);
+    if (activeBtn) activeBtn.classList.add('active');
+    renderRecipes();
+};
+
+window.openLogs = function() {
+    const modal = document.getElementById('logs-modal');
+    const body = document.getElementById('logs-body');
+    let logText = "=== SYSTEM DETEKCJI BŁĘDÓW ===\n\n";
+    
+    if (missingTexturesLog.size === 0 && badRecipesLog.size === 0) {
+        logText += "✅ Brak zarejestrowanych błędów. Paczka wczytana perfekcyjnie!\n";
+    } else {
+        if (missingTexturesLog.size > 0) {
+            logText += "⚠️ Brakujące pliki graficzne (Spróbuj wkleić je do folderu 'images/'):\n";
+            missingTexturesLog.forEach(t => logText += `  - ${t}\n`);
+            logText += "\n";
+        }
+        if (badRecipesLog.size > 0) {
+            logText += "❌ Ignorowane/Uszkodzone Receptury (Problem pliku modyfikacji):\n";
+            badRecipesLog.forEach(r => logText += `  - ${r}\n`);
+        }
+    }
+    
+    body.textContent = logText;
+    modal.style.display = 'flex';
+};
+
+window.closeLogs = function() {
+    document.getElementById('logs-modal').style.display = 'none';
+};
+
+function setLoading(show, msg, pct) {
+  const el = document.getElementById('loading');
+  el.style.display = show ? 'flex' : 'none';
+  if (show) {
+    document.getElementById('loading-msg').textContent = msg || '';
+    document.getElementById('loading-bar').style.width  = (pct||0) + '%';
+  }
+}
+function tick() { return new Promise(r => setTimeout(r, 16)); }
+
+const $tooltip = document.getElementById('tooltip');
+const $ttName  = document.getElementById('tt-name');
+const $ttId    = document.getElementById('tt-id');
+
+document.addEventListener('mousemove', e => {
+  $tooltip.style.left = (e.clientX + 16) + 'px';
+  $tooltip.style.top  = (e.clientY + 16) + 'px';
+});
+
+function showTooltip(name, id) {
+    $ttName.textContent = name;
+    $ttId.textContent = id;
+    $tooltip.style.display = 'block';
+}
+function hideTooltip() {
+    $tooltip.style.display = 'none';
+}
+
+function logMissing(name) {
+    missingTexturesLog.add(name);
+}
+
+// =====================================================================
+// GŁÓWNY SILNIK (CZYTANIE ZIP I PARSOWANIE JSON)
+// =====================================================================
+async function processFiles(files) {
+    setLoading(true, 'Otwieranie archiwów...', 0);
+    textureCache = {}; globalNameCache = {}; tagCache = {}; modIconsCache = {}; modelCache = {};
+    missingTexturesLog.clear(); badRecipesLog.clear();
+    const allRecipesRaw = [];
+    const arr = Array.from(files);
+    
+    try {
+        for (let i = 0; i < arr.length; i++) {
+            const file = arr[i];
+            setLoading(true, `📦 ${file.name}`, (i / arr.length) * 40);
+            await tick();
+            
+            const zip = new JSZip();
+            const loadedZip = await zip.loadAsync(file);
+
+            let tempZipIcon = null;
+            let foundModsInThisZip = new Set();
+
+            for (const relativePath in loadedZip.files) {
+                const entry = loadedZip.files[relativePath];
+                if(entry.dir) continue;
+
+                if (relativePath === "pack.png" || relativePath === "logo.png" || relativePath === "icon.png") {
+                    try {
+                        const base64data = await entry.async("base64");
+                        tempZipIcon = `data:image/png;base64,${base64data}`;
+                    } catch(e){}
+                }
+
+                if (relativePath.startsWith("assets/") && relativePath.endsWith(".png")) {
+                    if (relativePath.includes("/textures/item/") || relativePath.includes("/textures/block/") || relativePath.includes("/textures/fluid/")) {
+                        try {
+                            const parts = String(relativePath).split('/');
+                            const fileName = parts.pop().replace('.png', '');
+                            const modPrefix = parts.length > 1 ? parts[1] : "unknown";
+                            const fullId = `${modPrefix}:${fileName}`;
+                            
+                            const base64data = await entry.async("base64");
+                            const dataUri = `data:image/png;base64,${base64data}`;
+                            
+                            if (!textureCache[fullId]) textureCache[fullId] = dataUri;
+                            globalNameCache[fileName] = dataUri; 
+                            
+                            const parentFolder = parts.length > 0 ? parts[parts.length - 1] : "";
+                            if (parentFolder && !["item", "block", "fluid", "textures", "palettes", "stone_types"].includes(parentFolder)) {
+                                globalNameCache[`${fileName}_${parentFolder}`] = dataUri;
+                                globalNameCache[`${parentFolder}_${fileName}`] = dataUri;
+                            }
+                        } catch(e){}
+                    }
+                }
+
+                if (relativePath.startsWith("assets/") && relativePath.includes("/models/") && relativePath.endsWith(".json")) {
+                    try {
+                        const parts = String(relativePath).split('/');
+                        const fileName = parts.pop().replace('.json', '');
+                        const modPrefix = parts.length > 1 ? parts[1] : "unknown";
+                        const fullId = `${modPrefix}:${fileName}`;
+                        
+                        const modelData = JSON.parse(await entry.async("string"));
+                        if (modelData && modelData.textures) {
+                            let texKeys = ["layer0", "all", "texture", "cross", "side", "top", "bottom", "front", "particle"];
+                            let tex = null;
+                            for (let k of texKeys) {
+                                if (modelData.textures[k] && !String(modelData.textures[k]).startsWith('#')) {
+                                    tex = modelData.textures[k];
+                                    break;
+                                }
+                            }
+                            if (tex) {
+                                let cleanTexName = String(tex).split('/').pop();
+                                modelCache[fullId] = cleanTexName;
+                            }
+                        }
+                    } catch(e){}
+                }
+
+                if (relativePath.startsWith("data/") && relativePath.includes("/tags/") && relativePath.endsWith(".json")) {
+                    try {
+                        const parts = String(relativePath).split('/');
+                        const tagsIndex = parts.indexOf("tags");
+                        if (tagsIndex !== -1 && parts.length > tagsIndex + 1 && (parts[tagsIndex + 1] === "items" || parts[tagsIndex + 1] === "item" || parts[tagsIndex + 1] === "blocks")) {
+                            const tagId = `${parts[1]}:${parts.slice(tagsIndex + 2).join('/').replace('.json', '')}`;
+                            const tagData = JSON.parse(await entry.async("string"));
+                            if (tagData.values) {
+                                tagCache[tagId] = tagData.values.map(v => {
+                                    let val = typeof v === 'string' ? v : (v && v.id ? String(v.id) : "");
+                                    return val.replace('#', '');
+                                }).filter(v => v !== "");
+                            }
+                        }
+                    } catch(e){}
+                }
+
+                if (relativePath.startsWith("data/") && (relativePath.includes("/recipes/") || relativePath.includes("/recipe/")) && relativePath.endsWith(".json")) {
+                    try {
+                        const parts = String(relativePath).split('/');
+                        const modIdFromPath = parts.length > 1 ? parts[1] : "unknown";
+                        foundModsInThisZip.add(modIdFromPath);
+                        
+                        const recipeData = JSON.parse(await entry.async("string"));
+                        if(recipeData && typeof recipeData === 'object') {
+                            recipeData._sourceMod = modIdFromPath; 
+                            allRecipesRaw.push(recipeData);
+                        }
+                    } catch(e){
+                        badRecipesLog.add(relativePath);
+                    }
+                }
+            }
+
+            if (tempZipIcon) {
+                foundModsInThisZip.forEach(mod => {
+                    if (!modIconsCache[mod]) modIconsCache[mod] = tempZipIcon;
+                });
+            }
+        }
+
+        setLoading(true, 'Grupowanie inteligentne...', 60);
+        await tick();
+
+        categorizedRecipes = {};
+
+        allRecipesRaw.forEach(recipe => {
+            try {
+                if (!recipe || typeof recipe.type !== 'string') return;
+                if (recipe.type === "create:emptying" || recipe.type === "create:item_application") return;
+
+                let categoryName = String(recipe.type).split(':').pop().replace(/_/g, ' ');
+                if (!categorizedRecipes[categoryName]) categorizedRecipes[categoryName] = {};
+
+                let outputs = [];
+                if (recipe.results) outputs = extractItems(recipe.results);
+                else if (recipe.result) outputs = extractItems(recipe.result);
+                outputs = groupItems(outputs);
+
+                if (outputs.length === 0) return;
+
+                let isWeighted = recipe.type === "create:sequenced_assembly" || outputs.some(o => o.chance > 1.0);
+                if (isWeighted) {
+                    let totalWeight = 0;
+                    outputs.forEach(o => totalWeight += o.chance);
+                    if (totalWeight > 0) outputs.forEach(o => o.chance = o.chance / totalWeight);
+                }
+
+                let outputHash = outputs.map(o => `${o.id}x${o.count}c${o.chance}`).sort().join('|');
+
+                if (!categorizedRecipes[categoryName][outputHash]) {
+                    categorizedRecipes[categoryName][outputHash] = {
+                        type: recipe.type,
+                        outputs: outputs,
+                        groupedInputs: []
+                    };
+                }
+
+                let inputs = [];
+                let isShaped = recipe.type === "minecraft:crafting_shaped" || recipe.type === "create:mechanical_crafting";
+                let gridWidth = 0;
+                
+                if (isShaped && recipe.pattern && recipe.key) {
+                    let gridHeight = recipe.pattern.length;
+                    gridWidth = Math.max(...recipe.pattern.map(r => r.length)); 
+                    for (let r = 0; r < gridHeight; r++) {
+                        let rowStr = String(recipe.pattern[r] || "").padEnd(gridWidth, ' '); 
+                        for (let c = 0; c < gridWidth; c++) {
+                            let char = rowStr[c];
+                            if (char === ' ' || !recipe.key[char]) {
+                                inputs.push(null);
+                            } else {
+                                let extracted = extractItems(recipe.key[char]);
+                                inputs.push(extracted.length > 0 ? extracted[0] : null);
+                            }
+                        }
+                    }
+                } else {
+                    if (recipe.ingredients) inputs = extractItems(recipe.ingredients);
+                    else if (recipe.ingredient) inputs = extractItems(recipe.ingredient);
+                    inputs = groupItems(inputs);
+                }
+
+                categorizedRecipes[categoryName][outputHash].groupedInputs.push({
+                    inputs: inputs,
+                    isShaped: isShaped,
+                    gridWidth: gridWidth,
+                    heatRequirement: recipe.heatRequirement || "none",
+                    loops: recipe.loops || null,
+                    originalJson: recipe
+                });
+            } catch (e) { badRecipesLog.add(String(recipe.type)); }
+        });
+
+        setLoading(true, 'Generowanie Interfejsu...', 85);
+        await tick();
+
+        const sortedCats = Object.keys(categorizedRecipes).sort();
+        const tabsContainer = document.getElementById('tabs-bar');
+        
+        if (sortedCats.length > 0) {
+            currentCategory = sortedCats[0];
+            let tabsHTML = "";
+            sortedCats.forEach(cat => {
+                const safeClass = btoa(cat).replace(/=/g, '');
+                tabsHTML += `<div class="tab" id="tab-${safeClass}" onclick="window.switchCategory('${cat}')">${cat}</div>`;
+            });
+            tabsContainer.innerHTML = tabsHTML;
+            document.getElementById(`tab-${btoa(currentCategory).replace(/=/g, '')}`).classList.add('active');
+            renderRecipes();
+        } else {
+            tabsContainer.innerHTML = '';
+            document.getElementById('recipes-area').innerHTML = '<div class="no-results">Brak poprawnych receptur.</div>';
+            document.getElementById('stats-label').textContent = `0 receptur`;
+        }
+
+        setLoading(false);
+        document.getElementById('upload-screen').style.display = 'none';
+        document.getElementById('app').style.display = 'flex';
+
+    } catch(e) {
+        setLoading(false);
+        console.error(e);
+        alert("Błąd przetwarzania plików: " + e.message);
+    }
+}
+
+// =====================================================================
+// RENDEROWANIE KART DOM
+// =====================================================================
+function renderRecipes() {
+    const area = document.getElementById('recipes-area');
+    
+    animationIntervals.forEach(clearInterval);
+    animationIntervals = [];
+    area.innerHTML = '';
+    
+    if (!categorizedRecipes[currentCategory]) return;
+    
+    const outputGroups = categorizedRecipes[currentCategory];
+    let cardsRendered = 0;
+    
+    for (const hash in outputGroups) {
+        const groupData = outputGroups[hash];
+        
+        let match = true;
+        if (searchQuery) {
+            match = false;
+            let searchStr = (groupData.type + " " + groupData.groupedInputs[0].originalJson._sourceMod).toLowerCase();
+            groupData.outputs.forEach(o => {
+                if(o && o.id) searchStr += " " + String(o.id).toLowerCase() + " " + String(o.id).split(':').pop().replace(/_/g, ' ');
+            });
+            groupData.groupedInputs.forEach(inp => {
+                inp.inputs.forEach(i => {
+                    if(i && i.id) searchStr += " " + String(i.id).toLowerCase() + " " + String(i.id).split(':').pop().replace(/_/g, ' ');
+                });
+            });
+            if (searchStr.includes(searchQuery)) match = true;
+        }
+        
+        if (match) {
+            area.appendChild(buildGroupedCardDOM(currentCategory, groupData));
+            cardsRendered++;
+        }
+    }
+    
+    document.getElementById('stats-label').textContent = `${cardsRendered} receptur`;
+    if(cardsRendered === 0 && searchQuery) {
+        area.innerHTML = `<div class="no-results">Brak wyników dla "${searchQuery}" w kategorii ${currentCategory}</div>`;
+    }
+}
+
+function buildGroupedCardDOM(categoryName, groupData) {
+    const card = document.createElement('div');
+    card.className = 'recipe-card';
+
+    let sourceMod = groupData.groupedInputs[0].originalJson._sourceMod || "unknown";
+
+    const hdr = document.createElement('div');
+    hdr.className = 'card-header';
+    hdr.innerHTML = `
+        <div class="type-label">${categoryName}</div>
+        <div class="source-badge"><span style="text-transform:capitalize;">${sourceMod}</span> ${modIconsCache[sourceMod] ? `<img src="${modIconsCache[sourceMod]}">` : `📦`}</div>
+    `;
+    card.appendChild(hdr);
+
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    const inputsList = document.createElement('div');
+    inputsList.className = 'card-inputs';
+
+    let jsonPreText = "";
+
+    groupData.groupedInputs.forEach((inputData, index) => {
+        const row = document.createElement('div');
+        row.className = 'input-row';
+
+        if (inputData.heatRequirement === "heated") row.innerHTML += `<div class="heat-badge heat-heated">Heated</div>`;
+        else if (inputData.heatRequirement === "superheated") row.innerHTML += `<div class="heat-badge heat-superheated">Super-Heated</div>`;
+
+        if (inputData.isShaped) {
+            const grid = document.createElement('div');
+            grid.className = 'crafting-grid';
+            grid.style.gridTemplateColumns = `repeat(${inputData.gridWidth}, 38px)`;
+            inputData.inputs.forEach(item => grid.appendChild(buildSlotDOM(item)));
+            row.appendChild(grid);
+        } else {
+            inputData.inputs.forEach(item => row.appendChild(buildSlotDOM(item)));
+        }
+
+        inputsList.appendChild(row);
+
+        jsonPreText += `\n// --- Wariant nr ${index + 1} ---\n`;
+        jsonPreText += JSON.stringify(inputData.originalJson, null, 2);
+    });
+    body.appendChild(inputsList);
+
+    const machineArea = document.createElement('div');
+    machineArea.className = 'card-machine';
+    
+    let customMachinePath = machineMappings[groupData.type] || machineMappings[`minecraft:${categoryName.toLowerCase()}`];
+    let machineIconHTML = customMachinePath ? `<img src="${customMachinePath}" class="machine-custom-img" onerror="this.outerHTML='⚙️';">` : `<span style="font-size:32px;">⚙️</span>`;
+    
+    let catalystHTML = "";
+    if (groupData.type === "create:splashing") catalystHTML = `<img src="${vanillaRepo}/item/water_bucket.png" class="catalyst-icon">`;
+    else if (groupData.type === "create:smoking" || groupData.type === "minecraft:smoking" || groupData.type === "minecraft:campfire_cooking") catalystHTML = `<img src="${vanillaRepo}/item/campfire.png" class="catalyst-icon">`;
+    else if (groupData.type === "create:haunting") catalystHTML = `<img src="${vanillaRepo}/item/soul_campfire.png" class="catalyst-icon">`;
+    else if (groupData.type === "create:fan_blasting" || groupData.type === "minecraft:blasting" || groupData.type === "minecraft:smelting") catalystHTML = `<img src="${vanillaRepo}/item/lava_bucket.png" class="catalyst-icon">`;
+
+    machineArea.innerHTML = `<div class="machine-icon">${machineIconHTML}</div>${catalystHTML}`;
+    body.appendChild(machineArea);
+
+    const arrow = document.createElement('div');
+    arrow.className = 'card-arrow';
+    let loopsText = groupData.groupedInputs[0].loops ? `<div class="loops-badge">x${groupData.groupedInputs[0].loops}</div>` : "";
+    arrow.innerHTML = `→${loopsText}`;
+    body.appendChild(arrow);
+
+    const outputsArea = document.createElement('div');
+    outputsArea.className = 'card-output';
+    groupData.outputs.forEach(item => outputsArea.appendChild(buildSlotDOM(item)));
+    body.appendChild(outputsArea);
+
+    card.appendChild(body);
+
+    const jsonToggle = document.createElement('div');
+    jsonToggle.className = 'json-toggle';
+    jsonToggle.textContent = `[+] Pokaż kod JSON (${groupData.groupedInputs.length})`;
+    
+    const jsonWrapper = document.createElement('div');
+    jsonWrapper.className = 'json-content-wrapper';
+    
+    const pre = document.createElement('pre');
+    pre.textContent = jsonPreText.trim();
+    const jsonBlock = document.createElement('div');
+    jsonBlock.className = 'json-block';
+    jsonBlock.appendChild(pre);
+    jsonWrapper.appendChild(jsonBlock);
+
+    jsonToggle.onclick = () => window.toggleJson(jsonToggle);
+
+    card.appendChild(jsonToggle);
+    card.appendChild(jsonWrapper);
+
+    return card;
+}
+
+function buildSlotDOM(item) {
+    const slot = document.createElement('div');
+    slot.className = 'slot';
+
+    if (!item || !item.id) {
+        slot.classList.add('empty-slot');
+        return slot;
+    }
+
+    let safeId = String(item.id);
+    let displayName = safeId.split(':').pop().replace(/_/g, ' ');
+    if (item.isTag) displayName = "Tag: " + displayName;
+    if (item.isFluid) displayName = "💧 " + displayName;
+    
+    let shapeClass = "";
+    if (safeId.includes('_slab')) shapeClass = 'shape-slab';
+    else if (safeId.includes('_stairs')) shapeClass = 'shape-stairs';
+    else if (safeId.includes('_fence') || safeId.includes('_wall') || safeId.includes('_gate')) shapeClass = 'shape-fence';
+
+    if (item.chance && item.chance < 0.99) {
+        let chancePercent = item.chance * 100;
+        let displayStr = chancePercent % 1 !== 0 ? chancePercent.toFixed(1) : Math.round(chancePercent);
+        let cDiv = document.createElement('div');
+        cDiv.className = 'slot-chance';
+        cDiv.textContent = `${displayStr}%`;
+        slot.appendChild(cDiv);
+    }
+
+    if (item.count > 1) {
+        let cDiv = document.createElement('div');
+        cDiv.className = 'slot-count';
+        cDiv.textContent = item.isFluid ? `${item.count}mB` : item.count;
+        slot.appendChild(cDiv);
+    }
+
+    slot.addEventListener('mouseenter', () => showTooltip(displayName, safeId));
+    slot.addEventListener('mouseleave', hideTooltip);
+
+    let resolvedTagItems = [];
+    if (item.isTag) {
+        if (tagCache[safeId] && tagCache[safeId].length > 0) resolvedTagItems = tagCache[safeId];
+        else if (universalTagKnowledge[safeId]) resolvedTagItems = universalTagKnowledge[safeId];
+        else {
+            const tagParts = safeId.split('/'); 
+            if (tagParts.length > 1) {
+                let material = tagParts[1];
+                let form = String(tagParts[0]).split(':').pop(); 
+                if(form.endsWith('s') && form !== 'glass') form = form.slice(0, -1); 
+                resolvedTagItems = [`create:${material}_${form}`, `minecraft:${material}_${form}`];
+            }
+        }
+    } else {
+        resolvedTagItems = [safeId];
+    }
+
+    let cycleImages = [];
+    resolvedTagItems.forEach(tagItemId => {
+        if(!tagItemId) return;
+        let tMod = String(tagItemId).split(':')[0];
+        let tName = String(tagItemId).split(':').pop();
+        
+        if (item.isFluid && !tName.endsWith('_bucket')) {
+            tName += '_bucket';
+        }
+
+        if (modelCache[`${tMod}:${tName}`]) {
+            tName = modelCache[`${tMod}:${tName}`];
+        }
+
+        let src = hardcodedTextures[tagItemId];
+        if(!src) {
+            src = textureCache[`${tMod}:${tName}`] || 
+                  globalNameCache[tName] || 
+                  globalNameCache[`${tName}_top`] || 
+                  globalNameCache[`${tName}_front`] || 
+                  globalNameCache[`${tName}_side`] || 
+                  globalNameCache[`${tName}_0`];
+        }
+
+        if (!src && tMod !== "minecraft" && tMod !== "c" && tMod !== "forge") {
+            let cleanName = tName.replace(/_(stairs|slab|fence|wall|gate)$/, '');
+            let tokens = cleanName.split('_').map(t => t.endsWith('s') && t !== 'glass' ? t.slice(0, -1) : t);
+            let keys = Object.keys(globalNameCache);
+            
+            let match = keys.find(k => {
+                let kTokens = k.split('_').map(t => t.endsWith('s') && t !== 'glass' ? t.slice(0, -1) : t);
+                return kTokens.length === tokens.length && tokens.every(t => kTokens.includes(t));
+            });
+            
+            if (!match) {
+                let matches = keys.filter(k => {
+                    let kTokens = k.split('_').map(t => t.endsWith('s') && t !== 'glass' ? t.slice(0, -1) : t);
+                    return tokens.every(t => kTokens.includes(t));
+                });
+                if (matches.length > 0) {
+                    matches.sort((a, b) => a.length - b.length);
+                    match = matches[0];
+                }
+            }
+            
+            if (!match) {
+                let matches = keys.filter(k => {
+                    let kTokens = k.split('_').map(t => t.endsWith('s') && t !== 'glass' ? t.slice(0, -1) : t);
+                    return kTokens.length >= 2 && kTokens.every(t => tokens.includes(t));
+                });
+                if (matches.length > 0) {
+                    matches.sort((a, b) => b.length - a.length);
+                    match = matches[0];
+                }
+            }
+            if (match) src = globalNameCache[match];
+        }
+        
+        if (!src) {
+            if (tMod === 'minecraft' || tMod === 'c' || tMod === 'forge') {
+                src = `VANILLA_FALLBACK:${tName}`; 
+            } else {
+                src = `LOCAL_FALLBACK:${tName}`;
+            }
+        }
+        
+        if (src) cycleImages.push(src);
+    });
+
+    const img = document.createElement('img');
+    img.className = 'item-texture ' + shapeClass; 
+    img.style.display = 'none';
+
+    const fallbackText = document.createElement('div');
+    fallbackText.className = 'slot-text-fallback';
+    fallbackText.textContent = safeId.split(':').pop().slice(0, 5);
+    fallbackText.style.display = 'block';
+    
+    function applyVanillaFallback(imgElement, name) {
+        let baseName = name.replace(/_(stairs|slab|fence|wall|gate)$/, '');
+        let attempts = [
+            `${vanillaRepo}/item/${name}.png`,
+            `${vanillaRepo}/block/${name}.png`
+        ];
+        
+        if (baseName !== name) {
+            attempts.push(`${vanillaRepo}/block/${baseName}.png`);
+            attempts.push(`${vanillaRepo}/block/${baseName}_planks.png`);
+            attempts.push(`${vanillaRepo}/block/${baseName}s.png`);
+            attempts.push(`${vanillaRepo}/block/${baseName}_block.png`);
+            attempts.push(`${vanillaRepo}/block/${baseName.replace('stone_brick', 'stone_bricks')}.png`);
+        }
+
+        let attemptIdx = 0;
+        function tryNext() {
+            if (attemptIdx >= attempts.length) {
+                imgElement.style.display = 'none';
+                fallbackText.style.display = 'block';
+                logMissing(name);
+                return;
+            }
+            imgElement.src = attempts[attemptIdx++];
+        }
+        
+        imgElement.onerror = tryNext;
+        imgElement.onload = () => {
+            imgElement.style.display = 'block';
+            fallbackText.style.display = 'none';
+        };
+        tryNext();
+    }
+
+    function applyLocalFallback(imgElement, name) {
+        let baseName = name.replace(/_(stairs|slab|fence|wall|gate)$/, '');
+        let attempts = [
+            `images/${name}.webp`,
+            `images/${name}.png`,
+            `images/${baseName}.webp`,
+            `images/${baseName}.png`
+        ];
+        
+        let attemptIdx = 0;
+        function tryNext() {
+            if (attemptIdx >= attempts.length) {
+                imgElement.style.display = 'none';
+                fallbackText.style.display = 'block';
+                logMissing(name);
+                return;
+            }
+            imgElement.src = attempts[attemptIdx++];
+        }
+        
+        imgElement.onerror = tryNext;
+        imgElement.onload = () => {
+            imgElement.style.display = 'block';
+            fallbackText.style.display = 'none';
+        };
+        tryNext();
+    }
+
+    if (cycleImages.length > 1) {
+        let idx = 0;
+        const setFrame = () => {
+            let current = cycleImages[idx];
+            if (current.includes("VANILLA_FALLBACK")) applyVanillaFallback(img, current.split(':')[1]);
+            else if (current.includes("LOCAL_FALLBACK")) applyLocalFallback(img, current.split(':')[1]);
+            else { 
+                img.onerror = () => { img.style.display = 'none'; fallbackText.style.display = 'block'; logMissing(current); }; 
+                img.onload = () => { img.style.display = 'block'; fallbackText.style.display = 'none'; };
+                img.src = current; 
+            }
+        };
+        setFrame();
+        
+        const interval = setInterval(() => {
+            idx = (idx + 1) % cycleImages.length;
+            setFrame();
+        }, 1300);
+        animationIntervals.push(interval);
+    } else if (cycleImages.length === 1) {
+        let current = cycleImages[0];
+        if (current.includes("VANILLA_FALLBACK")) {
+            applyVanillaFallback(img, current.split(':')[1]);
+        } else if (current.includes("LOCAL_FALLBACK")) {
+            applyLocalFallback(img, current.split(':')[1]);
+        } else { 
+            img.onerror = () => { img.style.display = 'none'; fallbackText.style.display = 'block'; logMissing(current); };
+            img.onload = () => { img.style.display = 'block'; fallbackText.style.display = 'none'; };
+            img.src = current; 
+        }
+    }
+
+    slot.appendChild(img);
+    slot.appendChild(fallbackText);
+    return slot;
+}
+
+function extractItems(dataBlock) {
+    let items = [];
+    if (!dataBlock) return items;
+
+    function processNode(node) {
+        if (!node) return;
+        if (typeof node === 'string') {
+            items.push({ id: String(node).replace('#', ''), count: 1, isTag: String(node).startsWith('#'), isFluid: false, chance: 1.0 });
+            return;
+        }
+        if (Array.isArray(node)) {
+            node.forEach(processNode);
+            return;
+        }
+        if (typeof node === 'object') {
+            let id = null, count = node.count || node.Count || node.amount || node.Amount || 1, chance = node.chance || 1.0, isTag = false, isFluid = false;
+            
+            if (node.item) id = typeof node.item === 'string' ? node.item : (node.item.id || null);
+            else if (node.id) id = typeof node.id === 'string' ? node.id : null;
+            else if (node.fluid) { id = typeof node.fluid === 'string' ? node.fluid : (node.fluid.id || null); isFluid = true; }
+            else if (node.tag) { id = typeof node.tag === 'string' ? node.tag : null; isTag = true; }
+            
+            if (id) items.push({ id: String(id).replace('#', ''), count: count, isTag: isTag, isFluid: isFluid, chance: chance });
+            else { 
+                const fallback = Object.values(node).find(v => typeof v === 'string'); 
+                if (fallback) items.push({ id: String(fallback).replace('#',''), count: count, isTag: false, isFluid: false, chance: chance }); 
+            }
+        }
+    }
+    processNode(dataBlock);
+    return items;
+}
+
+function groupItems(items) {
+    const grouped = [];
+    items.forEach(item => {
+        let existing = grouped.find(g => g.id === item.id && g.isTag === item.isTag && g.isFluid === item.isFluid && g.chance === item.chance);
+        if (existing) existing.count += item.count; else grouped.push({ ...item });
+    });
+    return grouped;
+}
+</script>
+</body>
+</html>
